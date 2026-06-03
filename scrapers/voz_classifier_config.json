@@ -1,0 +1,60 @@
+{
+  "selection": {
+    "top_hot": 4,
+    "top_curated": 3,
+    "min_words_per_comment": 5,
+    "max_first_page_comments": 12,
+    "max_last_page_comments": 10,
+    "max_comment_length": 300,
+    "original_post_max_length": 500,
+    "min_replies_for_last_page": 30,
+    "fetch_delay_min_ms": 1200,
+    "fetch_delay_max_ms": 2200
+  },
+  "scoring_weights": {
+    "replies": 0.38,
+    "views": 0.20,
+    "page_count": 0.12,
+    "freshness": 0.15,
+    "topic": 0.10,
+    "source": 0.05
+  },
+  "source": {
+    "patterns": {
+      "/f/diem-bao.33": "voz_f33",
+      "/f/lap-trinh-cntt.91": "voz_cntt",
+      "/f/kinh-te-luat.92": "voz_ktl"
+    },
+    "bonus": {
+      "voz_ktl": 1.0,
+      "voz_cntt": 0.9,
+      "voz_f33": 0.8
+    }
+  },
+  "classification": {
+    "blacklist_title": [
+      "showbiz", "lo clip", "clip nong",
+      "cuop", "giet", "hiep",
+      "vo chong", "ngoai tinh", "danh ghen"
+    ],
+    "keyword_boost": {
+      "strong": [
+        "lai suat", "fed", "usd", "ty gia", "vang", "chung khoan", "etf",
+        "ai", "tuyen dung", "layoff", "cloud", "dev", "backend", "frontend",
+        "thue", "nghi dinh", "de xuat", "chi thi", "dien", "nang luong",
+        "quy hoach", "ha tang", "xe dien"
+      ],
+      "medium": [
+        "startup", "data", "iot", "smart grid", "pin",
+        "bat dong san", "dau tu", "kinh te", "luat", "cong nghe"
+      ]
+    },
+    "topics": {
+      "macro_finance": ["lai suat", "fed", "usd", "ty gia", "vang", "chung khoan", "etf", "dau tu"],
+      "tech_career": ["ai", "cloud", "dev", "backend", "frontend", "tuyen dung", "layoff", "data"],
+      "energy": ["dien", "nang luong", "xe dien", "pin", "smart grid"],
+      "policy_infra": ["quy hoach", "ha tang", "bat dong san", "de xuat", "nghi dinh", "thue"]
+    },
+    "default_topic": "general"
+  }
+}
