@@ -1,6 +1,6 @@
 from flask import Flask, request, jsonify
 from cloakbrowser import launch
-from scrapers.voz import scrape_f33
+from scrapers.voz import scrape_listing, scan_and_classify
 import markdownify
 import threading
 import queue
@@ -169,12 +169,25 @@ def scrape_batch():
 
     return jsonify({'results': results})
 
-# === Voz F33 Forum Listing ===
-@app.route('/scrape/voz/f33', methods=['POST'])
-def scrape_voz_f33():
+# === Voz Forum Listing ===
+@app.route('/scrape/voz/listing', methods=['POST'])
+def scrape_voz_listing():
+    url = request.json.get('url')
+    if not url:
+        return jsonify({'error': 'url required'}), 400
+    try:
+        return jsonify(scrape_listing(url))
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# === Voz Scan & Classify ===
+@app.route('/scrape/voz/scan', methods=['POST'])
+def scrape_voz_scan():
     url = request.json.get('url', 'https://voz.vn/f/diem-bao.33/')
     try:
-        return jsonify(scrape_f33(url))
+        return jsonify(scan_and_classify(url))
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
