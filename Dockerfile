@@ -5,6 +5,7 @@ WORKDIR /app
 RUN pip install --no-cache-dir flask markdownify
 
 COPY server.py .
+COPY scrapers/ ./scrapers/
 
 EXPOSE 8899
 
