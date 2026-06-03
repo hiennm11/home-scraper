@@ -36,6 +36,17 @@ def _normalize_vi(text):
     return text.translate(_DIACRITIC_MAP).lower()
 
 
+def _word_match(kw, normalized_text):
+    """Match keyword with proper word boundary handling.
+
+    - Multi-word keywords (contain space): use substring match (kw in text)
+    - Single-word keywords: split text into words and check exact match
+    """
+    if ' ' in kw:
+        return kw in normalized_text
+    return kw in normalized_text.split()
+
+
 def _detect_source(url):
     """Detect Voz subforum from URL path."""
     path = urlparse(url).path
@@ -50,7 +61,7 @@ def _is_garbage_title(title):
     """Check if title matches blacklist keywords."""
     normalized = _normalize_vi(title)
     for bad in _CONFIG["classification"]["blacklist_title"]:
-        if bad in normalized:
+        if _word_match(bad, normalized):
             return True
     return False
 
@@ -60,9 +71,9 @@ def _topic_bonus(title):
     normalized = _normalize_vi(title)
     score = 0.0
     boost = _CONFIG["classification"]["keyword_boost"]
-    if any(kw in normalized for kw in boost["strong"]):
+    if any(_word_match(kw, normalized) for kw in boost["strong"]):
         score += 1.0
-    if any(kw in normalized for kw in boost["medium"]):
+    if any(_word_match(kw, normalized) for kw in boost["medium"]):
         score += 0.5
     return score
 
@@ -74,7 +85,7 @@ def _detect_topic(title):
     best_topic = _CONFIG["classification"]["default_topic"]
     best_count = 0
     for topic, keywords in topics.items():
-        count = sum(1 for kw in keywords if kw in normalized)
+        count = sum(1 for kw in keywords if _word_match(kw, normalized))
         if count > best_count:
             best_count = count
             best_topic = topic

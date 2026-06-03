@@ -173,3 +173,28 @@ class TestSelectThreads:
         ]
         result = _select_threads(threads)
         assert len(result) == 4
+
+
+class TestWordMatch:
+    def test_single_word_ai_not_match_substring(self):
+        assert _topic_bonus("Ngoại thất bại đại học") == 0.0  # "ai" should NOT match inside these words
+
+    def test_single_word_ai_match_standalone(self):
+        assert _topic_bonus("AI đang phát triển") == 1.0  # "ai" as standalone word SHOULD match
+
+    def test_multi_word_still_substring(self):
+        assert _topic_bonus("lãi suất ngân hàng") == 1.0  # "lai suat" multi-word still works
+
+
+class TestTopicFix:
+    def test_iran_not_tech_career(self):
+        assert _detect_topic("Tình hình Iran và các bên liên quan") == "general"
+
+    def test_thai_not_tech_career(self):
+        assert _detect_topic("Chuyên gia: Đã đến lúc bỏ tư duy không có nhà là thất bại") == "general"
+
+
+class TestGarbageFix:
+    def test_hiep_as_word_matches(self):
+        # "hiep" IS a standalone word in "hiep si" → should match (correct behavior)
+        assert _is_garbage_title("Hiệp sĩ đường phố") is True
