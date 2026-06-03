@@ -425,3 +425,90 @@ def scrape_listing(url: str = 'https://voz.vn/f/diem-bao.33/') -> dict:
         'source': 'voz_listing',
         'threads': threads_out,
     }
+
+
+def scan_and_classify(url):
+    """Full pipeline: scan listing → score → select → fetch content → classify.
+
+    Args:
+        url: Voz forum listing URL (e.g. https://voz.vn/f/diem-bao.33/)
+
+    Returns:
+        {
+            'scanned_at': '...',
+            'source': 'voz_f33',
+            'threads': [{thread_id, title, url, source, topic, replies, views, score, original_post, comments}]
+        }
+    """
+    source = _detect_source(url)
+    if source is None:
+        raise ValueError(f"Unsupported URL: {url}")
+
+    config = _CONFIG
+    sel = config["selection"]
+
+    # Step 1: Scan listing page
+    with launch(
+        headless=True,
+        args=['--no-sandbox', '--disable-dev-shm-usage', '--disable-gpu']
+    ) as browser:
+        page = browser.new_page()
+        page.goto(url, wait_until='domcontentloaded', timeout=30000)
+        raw_data = page.evaluate(_INJECT_JS)
+        page.close()
+
+    # Step 2: Enrich + classify + score
+    enriched = []
+    for t in raw_data.get("threads", []):
+        title = t.get("title", "")
+        if _is_garbage_title(title):
+            continue
+
+        thread = {
+            "thread_id": _extract_thread_id(t.get("url", "")),
+            "title": title,
+            "url": t.get("url", ""),
+            "source": source,
+            "topic": _detect_topic(title),
+            "replies": _parse_number(t.get("replies", "")),
+            "views": _parse_number(t.get("views", "")),
+            "page_jump": t.get("page_jump", 0),
+            "last_activity_at": _parse_timestamp(t.get("last_activity", "")),
+            "topic_bonus": _topic_bonus(title),
+        }
+        thread["score"] = _calc_score(thread, source)
+        enriched.append(thread)
+
+    # Step 3: Select top threads
+    selected = _select_threads(enriched)
+
+    # Step 4: Fetch content for each thread (with delay)
+    results = []
+    for thread in selected:
+        delay = random.uniform(sel["fetch_delay_min_ms"], sel["fetch_delay_max_ms"]) / 1000
+        time.sleep(delay)
+
+        try:
+            content = _fetch_thread_content(thread["url"])
+            results.append({
+                "thread_id": thread["thread_id"],
+                "title": thread["title"],
+                "url": thread["url"],
+                "source": thread["source"],
+                "topic": thread["topic"],
+                "replies": thread["replies"],
+                "views": thread["views"],
+                "score": thread["score"],
+                "original_post": content["original_post"],
+                "comments": content["comments"],
+            })
+        except Exception as e:
+            import sys
+            print(f"[VOZ] Failed to fetch {thread['url']}: {e}", file=sys.stderr)
+            continue
+
+    return {
+        "scanned_at": datetime.now(timezone(timedelta(hours=7))).strftime("%Y-%m-%dT%H:%M:%S+07:00"),
+        "source": source,
+        "threads": results,
+    }
