@@ -133,6 +133,120 @@ def _select_threads(threads):
     return sorted(merged, key=lambda t: t.get("score", 0), reverse=True)
 
 
+def _clean_html(html):
+    """Strip blockquotes, images, scripts, links → plain text."""
+    from html.parser import HTMLParser
+
+    class Cleaner(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self.result = []
+            self.skip_blockquote = 0
+            self.skip_script_style = False
+
+        def handle_starttag(self, tag, attrs):
+            if tag in ("script", "style"):
+                self.skip_script_style = True
+            elif tag == "blockquote":
+                self.skip_blockquote += 1
+            elif tag == "img":
+                pass  # skip images entirely
+
+        def handle_endtag(self, tag):
+            if tag in ("script", "style"):
+                self.skip_script_style = False
+            elif tag == "blockquote" and self.skip_blockquote > 0:
+                self.skip_blockquote -= 1
+
+        def handle_data(self, data):
+            if self.skip_script_style or self.skip_blockquote > 0:
+                return
+            text = data.strip()
+            if text:
+                self.result.append(text)
+
+    cleaner = Cleaner()
+    cleaner.feed(html)
+    text = " ".join(cleaner.result)
+    # Normalize whitespace
+    text = " ".join(text.split())
+    # Remove lightbox placeholders
+    text = re.sub(r'\{[^{}]*lightbox_[^{}]*\}', '', text, flags=re.IGNORECASE)
+    return text.strip()
+
+
+def _parse_posts(html, config=None):
+    """Extract original post + comments from thread page HTML."""
+    if config is None:
+        config = _CONFIG
+    sel = config["selection"]
+
+    from html.parser import HTMLParser
+
+    class BBExtractor(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self.posts = []
+            self._current_post = []
+            self._in_target = False
+            self._depth = 0
+            self._tag_stack = []
+
+        def handle_starttag(self, tag, attrs):
+            attrs_dict = dict(attrs)
+            cls = attrs_dict.get("class", "")
+            self._tag_stack.append(tag)
+            if "bbWrapper" in cls:
+                self._in_target = True
+                self._depth = len(self._tag_stack)
+                self._current_post = []
+            elif self._in_target:
+                if tag == "br":
+                    self._current_post.append(" ")
+
+        def handle_endtag(self, tag):
+            if self._tag_stack:
+                self._tag_stack.pop()
+            if self._in_target and len(self._tag_stack) < self._depth:
+                self._in_target = False
+                text = "".join(self._current_post).strip()
+                text = " ".join(text.split())
+                if text:
+                    self.posts.append(text)
+
+        def handle_data(self, data):
+            if self._in_target:
+                self._current_post.append(data)
+
+    extractor = BBExtractor()
+    extractor.feed(html)
+
+    original_post = ""
+    comments = []
+
+    if extractor.posts:
+        original_post = extractor.posts[0]
+        if len(original_post) > sel["original_post_max_length"]:
+            original_post = original_post[:sel["original_post_max_length"]].strip() + "..."
+
+    for post in extractor.posts[1:]:
+        if len(post.split()) < sel["min_words_per_comment"]:
+            continue
+        if len(post) > sel["max_comment_length"]:
+            post = post[:sel["max_comment_length"]].strip() + "..."
+        comments.append(post)
+
+    return {"original_post": original_post, "comments": comments}
+
+
+def _get_page_count(html):
+    """Count pages from .pageNav-page links."""
+    matches = re.findall(r'class="pageNav-page[^"]*"[^>]*>(\d+)<', html)
+    if not matches:
+        return 1
+    return max(int(m) for m in matches)
+
+
 # --- Helpers ---
 
 def _parse_number(s: str) -> int:
