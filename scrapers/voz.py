@@ -7,6 +7,7 @@ Tách riêng khỏi server.py để dễ maintain, test, và mở rộng.
 import re
 from datetime import datetime, timezone, timedelta
 from cloakbrowser import launch
+from urllib.parse import urlparse
 
 import json
 import math
@@ -37,7 +38,6 @@ def _normalize_vi(text):
 
 def _detect_source(url):
     """Detect Voz subforum from URL path."""
-    from urllib.parse import urlparse
     path = urlparse(url).path
     patterns = _CONFIG["source"]["patterns"]
     for pattern, source_id in patterns.items():
