@@ -8,6 +8,32 @@ import re
 from datetime import datetime, timezone, timedelta
 from cloakbrowser import launch
 
+import json
+import math
+import random
+import time
+from pathlib import Path
+
+_CONFIG_PATH = Path(__file__).parent / "voz_classifier_config.json"
+
+def _load_config():
+    with open(_CONFIG_PATH, encoding="utf-8") as f:
+        return json.load(f)
+
+_CONFIG = _load_config()
+
+# Vietnamese diacritics → ASCII mapping
+_DIACRITIC_MAP = str.maketrans(
+    "àáảãạâầấẩẫậăằắẳẵặèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúủũụưừứửữựỳýỷỹỵđÀÁẢÃẠÂẦẤẨẪẬĂẰẮẲẴẶÈÉẺẼẸÊỀẾỂỄỆÌÍỈĨỊÒÓỎÕỌÔỒỐỔỖỘƠỜỚỞỠỢÙÚỦŨỤƯỪỨỬỮỰỲÝỶỸỴĐ",
+    "aaaaaaaaaaaaaaaaaeeeeeeeeeeeiiiiiooooooooooooooooouuuuuuuuuuuyyyyydAAAAAAAAAAAAAAAAAEEEEEEEEEEEIIIIIOOOOOOOOOOOOOOOOOUUUUUUUUUUUYYYYYD"
+)
+
+def _normalize_vi(text):
+    """Strip Vietnamese diacritics, lowercase. For keyword matching."""
+    if not text:
+        return ""
+    return text.translate(_DIACRITIC_MAP).lower()
+
 
 # --- Helpers ---
 
@@ -102,16 +128,16 @@ _INJECT_JS = """
 
 # --- Public API ---
 
-def scrape_f33(url: str = 'https://voz.vn/f/diem-bao.33/') -> dict:
-    """Scrape Voz F33 forum listing.
+def scrape_listing(url: str = 'https://voz.vn/f/diem-bao.33/') -> dict:
+    """Scrape Voz forum listing page.
 
     Args:
-        url: Voz subforum URL (default: F33 "Điểm báo").
+        url: Voz forum listing URL.
 
     Returns:
         {
             'scanned_at': '...',
-            'source': 'voz_f33',
+'source': 'voz_listing',
             'threads': [{thread_id, title, url, author, replies, views, last_activity_at, is_pinned, is_hot, tags_detected}]
         }
     """
@@ -141,6 +167,6 @@ def scrape_f33(url: str = 'https://voz.vn/f/diem-bao.33/') -> dict:
 
     return {
         'scanned_at': datetime.now(timezone(timedelta(hours=7))).strftime('%Y-%m-%dT%H:%M:%S+07:00'),
-        'source': 'voz_f33',
+        'source': 'voz_listing',
         'threads': threads_out,
     }
