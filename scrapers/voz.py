@@ -35,6 +35,57 @@ def _normalize_vi(text):
     return text.translate(_DIACRITIC_MAP).lower()
 
 
+def _detect_source(url):
+    """Detect Voz subforum from URL path."""
+    from urllib.parse import urlparse
+    path = urlparse(url).path
+    patterns = _CONFIG["source"]["patterns"]
+    for pattern, source_id in patterns.items():
+        if pattern in path:
+            return source_id
+    return None
+
+
+def _is_garbage_title(title):
+    """Check if title matches blacklist keywords."""
+    normalized = _normalize_vi(title)
+    for bad in _CONFIG["classification"]["blacklist_title"]:
+        if bad in normalized:
+            return True
+    return False
+
+
+def _topic_bonus(title):
+    """Calculate keyword boost: strong=+1.0, medium=+0.5."""
+    normalized = _normalize_vi(title)
+    score = 0.0
+    boost = _CONFIG["classification"]["keyword_boost"]
+    if any(kw in normalized for kw in boost["strong"]):
+        score += 1.0
+    if any(kw in normalized for kw in boost["medium"]):
+        score += 0.5
+    return score
+
+
+def _detect_topic(title):
+    """Classify thread into a topic category based on keyword match count."""
+    normalized = _normalize_vi(title)
+    topics = _CONFIG["classification"]["topics"]
+    best_topic = _CONFIG["classification"]["default_topic"]
+    best_count = 0
+    for topic, keywords in topics.items():
+        count = sum(1 for kw in keywords if kw in normalized)
+        if count > best_count:
+            best_count = count
+            best_topic = topic
+    return best_topic
+
+
+def _source_bonus(source):
+    """Look up source bonus weight from config. Returns 0 for unknown."""
+    return _CONFIG["source"]["bonus"].get(source, 0.0)
+
+
 # --- Helpers ---
 
 def _parse_number(s: str) -> int:
