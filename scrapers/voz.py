@@ -207,6 +207,7 @@ _INJECT_JS = """
             const matches = cell2Text.match(/([\\d.]+)\\s*([KM])?/gi) || [];
             const lastActivity = cells[3] ? cells[3].querySelector('.structItem-lastPostTime') : null;
             const author = cells[3] ? cells[3].querySelector('.username') : null;
+            const pageJumpLinks = item.querySelectorAll('.structItem-pageJump a');
             threads.push({
                 title: gt(a),
                 url: a ? a.href : '',
@@ -216,6 +217,7 @@ _INJECT_JS = """
                 author: gt(author),
                 is_pinned: item.querySelector('.structItem--pinned') != null,
                 is_hot: item.querySelector('.structItem--hot') != null,
+                page_jump: pageJumpLinks.length,
                 tags: []
             });
         }
