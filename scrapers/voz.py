@@ -186,61 +186,21 @@ def _clean_html(html):
     return text.strip()
 
 
-def _parse_posts(html, config=None):
-    """Extract original post + comments from thread page HTML."""
+def _parse_posts(posts_list, config=None):
+    """Filter and truncate extracted posts."""
     if config is None:
         config = _CONFIG
     sel = config["selection"]
 
-    from html.parser import HTMLParser
-
-    class BBExtractor(HTMLParser):
-        def __init__(self):
-            super().__init__()
-            self.posts = []
-            self._current_post = []
-            self._in_target = False
-            self._depth = 0
-            self._tag_stack = []
-
-        def handle_starttag(self, tag, attrs):
-            attrs_dict = dict(attrs)
-            cls = attrs_dict.get("class", "")
-            self._tag_stack.append(tag)
-            if "bbWrapper" in cls:
-                self._in_target = True
-                self._depth = len(self._tag_stack)
-                self._current_post = []
-            elif self._in_target:
-                if tag == "br":
-                    self._current_post.append(" ")
-
-        def handle_endtag(self, tag):
-            if self._tag_stack:
-                self._tag_stack.pop()
-            if self._in_target and len(self._tag_stack) < self._depth:
-                self._in_target = False
-                text = "".join(self._current_post).strip()
-                text = " ".join(text.split())
-                if text:
-                    self.posts.append(text)
-
-        def handle_data(self, data):
-            if self._in_target:
-                self._current_post.append(data)
-
-    extractor = BBExtractor()
-    extractor.feed(html)
-
     original_post = ""
     comments = []
 
-    if extractor.posts:
-        original_post = extractor.posts[0]
+    if posts_list:
+        original_post = posts_list[0]
         if len(original_post) > sel["original_post_max_length"]:
             original_post = original_post[:sel["original_post_max_length"]].strip() + "..."
 
-    for post in extractor.posts[1:]:
+    for post in posts_list[1:]:
         if len(post.split()) < sel["min_words_per_comment"]:
             continue
         if len(post) > sel["max_comment_length"]:
@@ -273,15 +233,16 @@ def _fetch_thread_content(url):
         page.goto(url, wait_until='domcontentloaded', timeout=30000)
         html1 = page.content()
         max_page = _get_page_count(html1)
-        parsed1 = _parse_posts(html1, config)
+        raw1 = page.evaluate(_THREAD_INJECT_JS)
+        parsed1 = _parse_posts(raw1.get("posts", []), config)
 
         # Last page (if applicable)
         parsed_last = {"original_post": "", "comments": []}
         if max_page > 1:
             last_url = url.rstrip('/') + '/page-' + str(max_page)
             page.goto(last_url, wait_until='domcontentloaded', timeout=30000)
-            html_last = page.content()
-            parsed_last = _parse_posts(html_last, config)
+            raw_last = page.evaluate(_THREAD_INJECT_JS)
+            parsed_last = _parse_posts(raw_last.get("posts", []), config)
 
         page.close()
 
@@ -388,6 +349,35 @@ _INJECT_JS = """
             });
         }
         return { threads: threads, forum_title: gt(document.querySelector('.p-title-value')) };
+    }
+"""
+
+
+_THREAD_INJECT_JS = """
+    () => {
+        const cleanText = (html) => {
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'text/html');
+            const body = doc.body;
+            body.querySelectorAll('blockquote').forEach(b => b.remove());
+            body.querySelectorAll('img').forEach(img => img.remove());
+            body.querySelectorAll('script, style').forEach(el => el.remove());
+            body.querySelectorAll('a').forEach(a => {
+                const txt = a.textContent?.trim() || '';
+                a.replaceWith(doc.createTextNode(txt ? ' ' + txt + ' ' : ' '));
+            });
+            let text = body.textContent.replace(/\\s+/g, ' ').trim();
+            text = text.replace(/\\{[^{}]*lightbox_[^{}]*\\}/gi, ' ');
+            return text;
+        };
+
+        const postEls = document.querySelectorAll('article.message-body .bbWrapper');
+        const posts = [];
+        postEls.forEach(el => {
+            const text = cleanText(el.innerHTML);
+            if (text) posts.push(text);
+        });
+        return { posts: posts };
     }
 """
 
