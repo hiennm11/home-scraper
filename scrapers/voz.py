@@ -247,6 +247,47 @@ def _get_page_count(html):
     return max(int(m) for m in matches)
 
 
+def _fetch_thread_content(url):
+    """Fetch page 1 + last page of a thread, extract posts."""
+    from cloakbrowser import launch
+    config = _CONFIG
+
+    with launch(
+        headless=True,
+        args=['--no-sandbox', '--disable-dev-shm-usage', '--disable-gpu']
+    ) as browser:
+        page = browser.new_page()
+
+        # Page 1
+        page.goto(url, wait_until='domcontentloaded', timeout=30000)
+        html1 = page.content()
+        max_page = _get_page_count(html1)
+        parsed1 = _parse_posts(html1, config)
+
+        # Last page (if applicable)
+        parsed_last = {"original_post": "", "comments": []}
+        if max_page > 1:
+            last_url = url.rstrip('/') + '/page-' + str(max_page)
+            page.goto(last_url, wait_until='domcontentloaded', timeout=30000)
+            html_last = page.content()
+            parsed_last = _parse_posts(html_last, config)
+
+        page.close()
+
+    # Merge: page 1 first N comments + last page last N comments
+    sel = config["selection"]
+    comments = (
+        parsed1["comments"][:sel["max_first_page_comments"]] +
+        parsed_last["comments"][-sel["max_last_page_comments"]:]
+    )
+
+    return {
+        "page_count": max_page,
+        "original_post": parsed1["original_post"] or parsed_last["original_post"],
+        "comments": comments,
+    }
+
+
 # --- Helpers ---
 
 def _parse_number(s: str) -> int:
