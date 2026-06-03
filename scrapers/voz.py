@@ -86,6 +86,53 @@ def _source_bonus(source):
     return _CONFIG["source"]["bonus"].get(source, 0.0)
 
 
+def _calc_score(thread, source):
+    """Calculate priority score using config weights. 6-component composite."""
+    w = _CONFIG["scoring_weights"]
+
+    replies_score = math.log10((thread.get("replies", 0) or 0) + 1) * w["replies"]
+    views_score = math.log10((thread.get("views", 0) or 0) + 1) * w["views"]
+    page_score = math.log10((thread.get("page_jump", 0) or 0) + 1) * w["page_count"]
+
+    # Freshness: normalize from last_activity_at, 72h decay window
+    last_activity = thread.get("last_activity_at", "")
+    if last_activity:
+        try:
+            tz = timezone(timedelta(hours=7))
+            parsed = datetime.fromisoformat(last_activity)
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=tz)
+            now = datetime.now(tz)
+            hours_ago = (now - parsed).total_seconds() / 3600
+            freshness_score = max(0, 1 - hours_ago / 72) * w["freshness"]
+        except (ValueError, TypeError):
+            freshness_score = 0
+    else:
+        freshness_score = 0
+
+    topic_score = _topic_bonus(thread.get("title", "")) * w["topic"]
+    source_score = _source_bonus(source) * w["source"]
+
+    return round(replies_score + views_score + page_score + freshness_score + topic_score + source_score, 4)
+
+
+def _select_threads(threads):
+    """Select top_hot + top_curated threads. Hot = top score. Curated = topic_bonus > 0, not in hot."""
+    cfg = _CONFIG["selection"]
+    sorted_by_score = sorted(threads, key=lambda t: t.get("score", 0), reverse=True)
+
+    hot = sorted_by_score[:cfg["top_hot"]]
+    hot_urls = {t.get("url") for t in hot}
+
+    curated = [
+        t for t in sorted_by_score
+        if t.get("url") not in hot_urls and t.get("topic_bonus", 0) > 0
+    ][:cfg["top_curated"]]
+
+    merged = hot + curated
+    return sorted(merged, key=lambda t: t.get("score", 0), reverse=True)
+
+
 # --- Helpers ---
 
 def _parse_number(s: str) -> int:
