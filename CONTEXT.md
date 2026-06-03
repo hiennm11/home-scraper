@@ -53,13 +53,17 @@ JS inject vào page để detect loại nội dung:
 
 ```
 /
-├── server.py           # Main app — all routes + do_scrape + BrowserPool + html_to_md
+├── server.py           # Main app — routes + do_scrape + BrowserPool + html_to_md
 ├── debug_server.py     # Dev debug endpoint /debug — inspect structItem DOM structure
+├── scrapers/           # Per-site scraper modules
+│   ├── __init__.py
+│   └── voz.py          # Voz.vn specialist — scrape_f33() + helpers
 ├── Dockerfile          # Build từ cloakhq/cloakbrowser
 ├── docker-compose.yml  # Single service scraper:local, port 8899, homelab_net
 ├── CONTEXT.md          # This file
 ├── CLAUDE.md           # Agent skills config
 └── docs/
     ├── adr/            # Architectural Decision Records
+    │   └── 001-voz-scraper-module.md
     └── agents/         # Agent skill configs (issue-tracker, triage-labels, domain)
 ```
